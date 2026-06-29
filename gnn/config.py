@@ -48,7 +48,7 @@ FEATURE_COLS = [
     "Utot (V)",
     "HrAIRFC (%)",
     "PinH2 (mbara)",
-    "TinWAT (°C)",
+    "TinWAT (ｰC)",
     "I (A)",
 ]
 TARGET_COL = "Utot (V)"
