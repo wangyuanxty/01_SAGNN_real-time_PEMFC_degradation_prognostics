@@ -41,13 +41,18 @@ def evaluate(model: GNN, data: dict) -> dict:
             a (float), bs (5,),
     """
     pred = model.predict(data)
-    y_pred = pred["y_pred"]
-    y_true = pred["y_true"]
+    y_pred = pred["y_pred"]        # (7,) 全序列预测
+    y_true = pred["y_true"]        # (7,) 全序列真实值
+
+    # 只在验证集上计算指标 (IAGO 索引 = 原始索引 - 1)
+    val_iago_idx = data["val_idx"] - 1   # [5, 6] for 8-point time-ordered
+    y_pred_val = y_pred[val_iago_idx]
+    y_true_val = y_true[val_iago_idx]
 
     # MAPE
-    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100.0
+    mape = np.mean(np.abs((y_true_val - y_pred_val) / y_true_val)) * 100.0
     # MSE
-    mse = np.mean((y_true - y_pred) ** 2)
+    mse = np.mean((y_true_val - y_pred_val) ** 2)
     # RMSE
     rmse = np.sqrt(mse)
 
@@ -59,6 +64,7 @@ def evaluate(model: GNN, data: dict) -> dict:
         "RMSE": float(rmse),
         "a": pred["a"],
         "bs": pred["bs"],
+        "val_idx": data["val_idx"],  # 验证集原始索引
     }
 
 
@@ -156,9 +162,9 @@ def print_metrics(results: dict) -> None:
     print(f"\n{'='*60}")
     print(f"  Evaluation Results")
     print(f"{'='*60}")
-    print(f"  MAPE : {results['MAPE']:.4f} %")
-    print(f"  MSE  : {results['MSE']:.8f} V^2")
-    print(f"  RMSE : {results['RMSE']:.8f} V")
+    print(f"  MAPE : {results['MAPE']:.4f} % (validation only)")
+    print(f"  MSE  : {results['MSE']:.8f} V² (validation only)")
+    print(f"  RMSE : {results['RMSE']:.8f} V  (validation only)")
     print(f"{'='*60}")
     print(f"  Grey Coefficients")
     print(f"{'='*60}")
@@ -170,9 +176,11 @@ def print_metrics(results: dict) -> None:
     print(f"{'='*60}")
     print(f"  Predictions vs Actual")
     print(f"{'='*60}")
+    val_idx = results.get("val_idx", np.array([6, 7]))
     for i in range(len(results["y_pred"])):
+        tag = " [VAL]" if (i + 1) in val_idx else ""
         print(
-            f"  point {i+1}:  pred={results['y_pred'][i]:.6f} V  "
+            f"  point {i+1}{tag}:  pred={results['y_pred'][i]:.6f} V  "
             f"actual={results['y_true'][i]:.6f} V  "
             f"error={abs(results['y_pred'][i]-results['y_true'][i]):.6f} V"
         )

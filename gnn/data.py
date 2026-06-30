@@ -230,7 +230,7 @@ def load_dataset(cfg: DatasetConfig, seed: int = 42) -> dict:
             X_all (8,5), y_all_ago (8,), y_all_raw (8,),
             X_dmin (5,), X_dmax (5,),
             target_dmin (float), target_dmax (float),
-            char_times (tuple), name (str),
+            char_times (tuple), name (str), val_idx (ndarray),
     """
     df = load_raw_data(cfg)
     char_df = extract_char_points(df, cfg)
@@ -266,4 +266,5 @@ def load_dataset(cfg: DatasetConfig, seed: int = 42) -> dict:
         "target_dmax": float(y_dmax[0]),
         "char_times": cfg.char_times,
         "name": cfg.name,
+        "val_idx": val_idx,          # 验证集在原始 8 点中的索引 (IAGO 后减 1)
     }
