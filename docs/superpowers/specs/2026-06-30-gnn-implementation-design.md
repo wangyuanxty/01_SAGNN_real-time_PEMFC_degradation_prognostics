@@ -150,8 +150,8 @@ def predict(self, data):
 | LB 输出维度 | 3 |
 | LC 激活函数 | Sigmoid |
 | LD 激活函数 | Linear（恒等） |
-| 优化器 | SGD |
-| 学习率 | 0.0002 |
+| 优化器 | Adam |
+| 学习率 | 0.001 |
 | 权重初始化范围 | U(0, 0.5) |
 | 最大迭代次数 | 1000 |
 | 损失函数 | MSELoss |
@@ -161,7 +161,7 @@ def predict(self, data):
 
 ```python
 def train(model, data, config):
-    optimizer = SGD(model.parameters(), lr=0.0002)
+    optimizer = Adam(model.parameters(), lr=0.001)
     loss_fn = MSELoss()
     X = torch.tensor(data["X_train"], dtype=torch.float32)
     y = torch.tensor(data["y_train_ago"], dtype=torch.float32)
@@ -183,7 +183,7 @@ def train(model, data, config):
 ### 小样本适配说明
 
 - 仅 6 个训练样本 → 全批量梯度下降（不做 mini-batch）
-- 使用 SGD（非 Adam）, 与论文梯度下降方式一致
+- 使用 Adam, 小样本下自适应学习率更稳定
 - 此样本量下, 几百个 epoch 内训练 loss 接近零是正常现象
 - 提供 `run(seed)` 包装函数, 多次独立运行取均值以获得可靠统计
 
