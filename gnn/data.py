@@ -125,6 +125,9 @@ def build_samples(
     if missing_features:
         raise KeyError(f"缺少特征列: {missing_features}. 可用列: {list(df.columns)}")
 
+    if target_col not in df.columns:
+        raise KeyError(f"缺少目标列: '{target_col}'. 可用列: {list(df.columns)}")
+
     X = df[feature_cols].values.astype(np.float64)
     y = df[target_col].values.astype(np.float64)
 
@@ -152,8 +155,8 @@ def normalize(data: np.ndarray) -> "tuple[np.ndarray, np.ndarray, np.ndarray]":
     normalized = (data - dmin) / denom
     if data.ndim == 1:
         normalized = normalized.ravel()
-        dmin = dmin.ravel()
-        dmax = dmax.ravel()
+    dmin = dmin.ravel()
+    dmax = dmax.ravel()
     return normalized, dmin, dmax
 
 
@@ -213,11 +216,11 @@ def load_dataset(cfg: DatasetConfig, seed: int = 42) -> dict:
 
     1. load_raw_data → 2. extract_char_points → 3. build_samples
     → 4. normalize X → 5. normalize y → 6. AGO y
-    → 7. 6/2 随机划分
+    → 7. 6/2 时间顺序划分 (前6训练, 后2验证)
 
     Args:
         cfg: 数据集配置。
-        seed: 随机种子。
+        seed: 保留参数, 当前未使用 (时间顺序划分不需要随机种子)。
 
     Returns:
         dict with keys:
@@ -229,8 +232,6 @@ def load_dataset(cfg: DatasetConfig, seed: int = 42) -> dict:
             target_dmin (float), target_dmax (float),
             char_times (tuple), name (str),
     """
-    rng = np.random.default_rng(seed)
-
     df = load_raw_data(cfg)
     char_df = extract_char_points(df, cfg)
     X, y_raw = build_samples(char_df, cfg)
@@ -244,11 +245,10 @@ def load_dataset(cfg: DatasetConfig, seed: int = 42) -> dict:
     # AGO
     y_ago = ago_sequence(y_norm)
 
-    # 6/2 随机划分
-    indices = np.arange(8)
-    rng.shuffle(indices)
-    train_idx = np.sort(indices[:6])
-    val_idx = np.sort(indices[6:])
+    # 6/2 时间顺序划分 (前6训练, 后2验证)
+    # 退化预测是外推任务: 必须用过去预测未来
+    train_idx = np.arange(6)   # 前 6 个特征化时刻
+    val_idx = np.arange(6, 8)  # 后 2 个特征化时刻
 
     return {
         "X_train": X_norm[train_idx],
