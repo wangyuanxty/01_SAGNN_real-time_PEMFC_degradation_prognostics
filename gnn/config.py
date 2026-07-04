@@ -45,13 +45,13 @@ class TrainConfig:
 
     默认值来自论文 §3.3, 仅将 SGD 替换为 Adam。
     """
-    hidden_nodes: int = 10
+    hidden_nodes: int = 40
     lb_output_dim: int = 3
     activation: str = "sigmoid"
     lr: float = 0.001
     weight_init_low: float = 0.0
     weight_init_high: float = 0.5
-    epochs: int = 1000
+    epochs: int = 5000
     train_points: int = 6
     val_points: int = 2
     seed: int = 42

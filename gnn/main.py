@@ -11,6 +11,7 @@ import torch
 from gnn.config import FC1_CONFIG, FC2_CONFIG, TRAIN_CONFIG, TrainConfig
 from gnn.data import load_dataset
 from gnn.model import GNN
+from gnn.model_extensions import DeepGNN
 from gnn.train import train
 
 
@@ -163,7 +164,7 @@ def print_metrics(results: dict) -> None:
     print(f"  Evaluation Results")
     print(f"{'='*60}")
     print(f"  MAPE : {results['MAPE']:.4f} % (validation only)")
-    print(f"  MSE  : {results['MSE']:.8f} V² (validation only)")
+    print(f"  MSE  : {results['MSE']:.8f} V^2 (validation only)")
     print(f"  RMSE : {results['RMSE']:.8f} V  (validation only)")
     print(f"{'='*60}")
     print(f"  Grey Coefficients")
@@ -186,12 +187,21 @@ def print_metrics(results: dict) -> None:
         )
 
 
-def main(dataset_name: str = "FC1", seed: int = 42) -> dict:
+def main(
+    dataset_name: str = "FC1",
+    seed: int = 42,
+    deep_lb: bool = False,
+    deep_la: bool = False,
+    residual: bool = False,
+) -> dict:
     """端到端入口。
 
     Args:
         dataset_name: "FC1" 或 "FC2"。
-        seed: 随机种子。
+        seed:         随机种子。
+        deep_lb:      启用深层特征编码器 (MLP 5→16→8→1)。
+        deep_la:      启用时变衰减率 a(k)。
+        residual:     启用显式灰趋势 + 深度残差。
 
     Returns:
         results 字典。
@@ -201,8 +211,13 @@ def main(dataset_name: str = "FC1", seed: int = 42) -> dict:
     cfg = FC1_CONFIG if dataset_name.upper() == "FC1" else FC2_CONFIG
     train_cfg = TRAIN_CONFIG
 
+    use_deep = deep_lb or deep_la or residual
+    flags = "+".join(
+        n for n, v in [("deep_lb", deep_lb), ("deep_la", deep_la), ("residual", residual)] if v
+    ) or "none"
+
     print(f"\n{'='*60}")
-    print(f"  SiGDSM-GNN — Standard Grey Neural Network")
+    print(f"  GNN — {'DeepGNN' if use_deep else 'GNN'}  [{flags}]")
     print(f"  Dataset: {cfg.name}")
     print(f"  Seed: {seed}")
     print(f"{'='*60}")
@@ -214,11 +229,19 @@ def main(dataset_name: str = "FC1", seed: int = 42) -> dict:
 
     # 2. 模型
     print("\n[2/4] Building model...")
-    model = GNN(
-        input_dim=5,
-        lb_dim=train_cfg.lb_output_dim,
-        hidden_dim=train_cfg.hidden_nodes,
-    )
+    if use_deep:
+        model = DeepGNN(
+            input_dim=5,
+            hidden_dim=train_cfg.hidden_nodes,
+            deep_lb=deep_lb,
+            deep_la=deep_la,
+            residual=residual,
+        )
+    else:
+        model = GNN(
+            input_dim=5,
+            hidden_dim=train_cfg.hidden_nodes,
+        )
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {total_params}")
 
