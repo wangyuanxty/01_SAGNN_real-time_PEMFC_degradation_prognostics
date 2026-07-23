@@ -1,8 +1,8 @@
-# GNN — PEMFC 退化预测的灰色神经网络
+# 基于深度化 GNN 的 PEMFC 退化预测开放问题研究
 
-> 原论文：*Real-time degradation prognostics for PEMFC using a self-adaptive grey neural network model* (Energy, 2025)
+> 原论文：Sapnken et al., *Real-time degradation prognostics for PEMFC using a self-adaptive grey neural network model*, Energy, 2025
 >
-> 本仓库：标准 GNN 的 PyTorch 复现 + 针对论文两个开放问题的解决方案 + 对比实验
+> 本仓库复现论文的标准 GNN，针对论文提出的两个开放问题——可逆/不可逆退化分离与自适应特征权重——分别给出架构层面的解决方案，并通过对比实验验证有效性
 
 ## 标准 GNN
 
