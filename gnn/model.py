@@ -1,15 +1,19 @@
 """标准灰色神经网络 (GNN) 模型 — 论文原始架构。
 
-结构严格对应论文公式 (4) 和公式 (6):
+四层结构, 严格对应论文公式 (4) 和公式 (6):
 
-  x̂^(1)(k+1) = (x^(0)(1) − drive) · e^(−a·k) + drive                  (4)
-  a = −w11,   b_i = w_{1,i+1} / w11   (i=1..5)                        (6)
+  x̂^(1)(k+1) = (x^(0)(1) − (1/a)·Σb_i·u_i) · e^(−a·k) + (1/a)·Σb_i·u_i   (4)
+  a = −w11,   b_i = w_{1,i+1} / w11   (i=1..5)                           (6)
 
-w11:    标量参数 → a = −w11, 指数衰减核 e^(−a·k)
-drive:  Linear(5→1), 特征 → 驱动项 (训练时不除 w11)
-灰组合: (x0 − drive) · e^(−a·k) + drive
-hidden: Linear(1→hidden) + Sigmoid
-output: Linear(hidden→1)
+四层分别负责:
+  1. 指数衰减核 (w11): 标量参数, 控制退化速度 a = −w11, 输出 e^(−a·k)
+  2. 特征编码层 (LB):  Linear(5→1) 将 5 个运行参数映射为驱动项, 训练时不除 w11
+  3. Sigmoid 隐藏层 (LC): Linear(1→hidden) + Sigmoid, 非线性变换
+  4. 线性输出层 (LD):    Linear(hidden→1), 产生 AGO 空间的退化预测值
+
+灰组合 (公式 4): (x0 − 特征编码输出) · 指数衰减核 + 特征编码输出
+
+注: 模块名 w11/LB/LC/LD 为代码简洁保留, 但每个成员都附有中文注释说明其角色。
 """
 
 import numpy as np
@@ -18,33 +22,33 @@ import torch.nn as nn
 
 
 class GNN(nn.Module):
-    """标准灰色神经网络。
+    """标准 4 层灰色神经网络。
 
     Args:
         input_dim:  特征维度, 默认 5。
-        hidden_dim: 隐藏层节点数, 默认 40。
+        hidden_dim: LC 隐藏节点数, 默认 40。
     """
 
     def __init__(self, input_dim: int = 5, hidden_dim: int = 40):
         super().__init__()
 
-        # 衰减系数: w11 → a = −w11 > 0, e^(−a·k)
+        # 指数衰减核: 单标量参数 w11, 控制退化速度 a = −w11 > 0
         self.w11 = nn.Parameter(torch.tensor(-0.2))
 
-        # 特征编码器: u(5) → 驱动项标量
-        self.drive = nn.Linear(input_dim, 1, bias=False)
+        # 特征编码层: 5 个运行参数 → 驱动项, 训练时不除 w11
+        self.LB = nn.Linear(input_dim, 1, bias=False)
 
-        # 隐藏层 + 输出层
-        self.hidden = nn.Linear(1, hidden_dim, bias=True)
-        self.output = nn.Linear(hidden_dim, 1, bias=True)
+        # Sigmoid 隐藏层 + 线性输出层
+        self.LC = nn.Linear(1, hidden_dim, bias=True)
+        self.LD = nn.Linear(hidden_dim, 1, bias=True)
         self._init_layers()
 
     def _init_layers(self) -> None:
-        for m in [self.hidden, self.output]:
+        for m in [self.LC, self.LD]:
             nn.init.uniform_(m.weight, 0.0, 0.5)
             if m.bias is not None:
                 nn.init.uniform_(m.bias, 0.0, 0.5)
-        nn.init.uniform_(self.drive.weight, -0.25, 0.25)
+        nn.init.uniform_(self.LB.weight, -0.25, 0.25)
 
     # ── 前向传播 ────────────────────────────────────────────────
 
@@ -60,12 +64,12 @@ class GNN(nn.Module):
         Returns:
             (batch,) AGO 空间预测值。
         """
-        a = -self.w11                              # a = −w11  (公式 6)
-        decay = torch.exp(-a * k)                  # 指数衰减核 e^(−a·k)
-        drive = self.drive(u).squeeze(-1)          # 特征 → 驱动项
-        grey = (x0 - drive) * decay + drive         # 灰组合 (公式 4)
-        h = torch.sigmoid(self.hidden(grey.unsqueeze(-1)))
-        return self.output(h).squeeze(-1)
+        a = -self.w11                              # 退化速度 a = −w11 (公式 6)
+        decay = torch.exp(-a * k)                  # 指数衰减核: e^(−a·k)
+        driving = self.LB(u).squeeze(-1)           # 特征编码: 5 参数 → 驱动项
+        grey = (x0 - driving) * decay + driving    # 灰组合 (公式 4)
+        h = torch.sigmoid(self.LC(grey.unsqueeze(-1)))   # Sigmoid 隐藏层
+        return self.LD(h).squeeze(-1)                     # 线性输出层
 
     # ── 灰系数提取 ──────────────────────────────────────────────
 
@@ -73,8 +77,8 @@ class GNN(nn.Module):
         """从权重提取灰系数 (公式 6)。"""
         w11 = float(self.w11.item())
         a = -w11
-        w = self.drive.weight.data[0].cpu().numpy()
-        b = w / w11
+        lb_w = self.LB.weight.data[0].cpu().numpy()
+        b = lb_w / w11
         return a, b
 
     # ── 解析预测 ────────────────────────────────────────────────

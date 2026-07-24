@@ -112,11 +112,11 @@ class NeuralODEGNN(nn.Module):
         self.use_net = use_net
 
         # ── 灰模型参数 ──────────────────────────────────────────
-        # LA: w11 → a = −w11 > 0, 保证指数衰减
+        # 指数衰减核: w11 → a = −w11 > 0, 保证指数衰减
         self.w11 = nn.Parameter(torch.tensor(-0.2))
 
-        # 驱动系数权重 (对应论文 b_i)
-        self.drive = nn.Linear(input_dim, 1, bias=False)
+        # 特征编码层: 5 个运行参数 → 驱动系数, 用于 Σb·u 项
+        self.LB = nn.Linear(input_dim, 1, bias=False)
 
         # ── 神经网络残差校正 ────────────────────────────────────
         if use_net:
@@ -129,7 +129,7 @@ class NeuralODEGNN(nn.Module):
         self._init_weights()
 
     def _init_weights(self) -> None:
-        nn.init.uniform_(self.drive.weight, -0.25, 0.25)
+        nn.init.uniform_(self.LB.weight, -0.25, 0.25)
         if self.use_net:
             for m in self.net:
                 if isinstance(m, nn.Linear):
@@ -150,9 +150,9 @@ class NeuralODEGNN(nn.Module):
         Returns:
             dx/dt, scalar。
         """
-        a = -self.w11                             # a > 0
-        grey_drift = -a * x                       # 灰模型: 指数衰减
-        grey_input = self.drive(u.unsqueeze(0)).squeeze(-1).squeeze(0)  # b·u
+        a = -self.w11                             # 退化速度 a > 0
+        grey_drift = -a * x                       # 灰模型指数衰减项: −a·x
+        grey_input = self.LB(u.unsqueeze(0)).squeeze(-1).squeeze(0)  # 特征驱动项: Σb·u
 
         if self.use_net:
             t_in = t.unsqueeze(0).unsqueeze(0)    # (1, 1)
@@ -200,7 +200,7 @@ class NeuralODEGNN(nn.Module):
     def extract_grey_coeffs(self) -> "tuple[float, np.ndarray]":
         w11 = float(self.w11.item())
         a = -w11
-        lb_w = self.drive.weight.data[0].cpu().numpy()
+        lb_w = self.LB.weight.data[0].cpu().numpy()
         b = lb_w / w11
         return a, b
 
