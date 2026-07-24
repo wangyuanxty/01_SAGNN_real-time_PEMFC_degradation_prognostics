@@ -45,17 +45,17 @@ class DeepGNN(GNN):
         self._deep_la = deep_la
         self._residual = residual
 
-        # ── 深层 LB ──────────────────────────────────────────
+        # ── 深层特征编码 ──────────────────────────────────────
         if deep_lb:
-            self.LB = nn.Sequential(
+            self.drive = nn.Sequential(
                 nn.Linear(input_dim, 16), nn.ReLU(),
                 nn.Linear(16, 8),  nn.ReLU(),
                 nn.Linear(8, 1),
             )
 
-        # ── 时变 LA ──────────────────────────────────────────
+        # ── 时变衰减率 ──────────────────────────────────────────
         if deep_la:
-            self.LA_net = nn.Sequential(
+            self.time_net = nn.Sequential(
                 nn.Linear(4, 4), nn.ReLU(),
                 nn.Linear(4, 1),
             )
@@ -76,35 +76,30 @@ class DeepGNN(GNN):
     def forward(
         self, k: torch.Tensor, u: torch.Tensor, x0: torch.Tensor
     ) -> torch.Tensor:
-        # LA
         if self._deep_la:
             k_enc = torch.stack([
                 torch.sin(k), torch.cos(k),
                 torch.sin(2 * k), torch.cos(2 * k),
             ], dim=-1)
-            delta_a = self.LA_net(k_enc).squeeze(-1)
+            delta_a = self.time_net(k_enc).squeeze(-1)
             a = F.softplus(-self.w11 + delta_a)
         else:
             a = -self.w11
 
-        la = torch.exp(-a * k)
+        decay = torch.exp(-a * k)
 
-        # LB
-        lb_out = self.LB(u).squeeze(-1)
+        drive = self.drive(u).squeeze(-1)
 
-        # 灰组合
-        grey = (x0 - lb_out) * la + lb_out
+        grey = (x0 - drive) * decay + drive
 
-        # 残差
         if self._residual:
             k_u = k.unsqueeze(-1)
             x0_b = x0.expand_as(k_u)
             res_in = torch.cat([u, k_u, x0_b], dim=-1)
             grey = grey + self.res_net(res_in).squeeze(-1)
 
-        # 隐藏层
-        h = torch.sigmoid(self.LC(grey.unsqueeze(-1)))
-        return self.LD(h).squeeze(-1)
+        h = torch.sigmoid(self.hidden(grey.unsqueeze(-1)))
+        return self.output(h).squeeze(-1)
 
     # ── 灰系数提取 ──────────────────────────────────────────────
 
@@ -112,11 +107,11 @@ class DeepGNN(GNN):
         w11 = float(self.w11.item())
         a = -w11
         if self._deep_lb:
-            first_linear = self.LB[0]
-            lb_w = first_linear.weight.data[0, :5].cpu().numpy()
+            first_linear = self.drive[0]
+            w = first_linear.weight.data[0, :5].cpu().numpy()
         else:
-            lb_w = self.LB.weight.data[0].cpu().numpy()
-        b = lb_w / w11
+            w = self.drive.weight.data[0].cpu().numpy()
+        b = w / w11
         return a, b
 
     # ── 预测 ────────────────────────────────────────────────────
