@@ -2,6 +2,8 @@
 
 > 原论文：Sapnken et al., *Real-time degradation prognostics for PEMFC using a self-adaptive grey neural network model*, Energy, 2025
 >
+> 本实验代码仓库：[https://github.com/wangyuanxty/01_SAGNN_real-time_PEMFC_degradation_prognostics](https://github.com/wangyuanxty/01_SAGNN_real-time_PEMFC_degradation_prognostics)
+>
 > 本仓库复现论文的标准 GNN，针对论文提出的两个与架构直接相关的开放问题——可逆/不可逆退化分离与自适应特征权重——分别给出解决方案，并通过对比实验验证有效性
 
 ## 标准 GNN
